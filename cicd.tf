@@ -6,6 +6,7 @@ module "github_oidc_iam_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-github-oidc-role"
   version = "~> 5.17"
 
+  name     = "${local.name}-github-oidc"
   subjects = ["clowdhaus/${local.name}:*"]
   policies = {
     ECRWrite = aws_iam_policy.ecr_write.arn
@@ -36,7 +37,12 @@ resource "aws_iam_policy" "ecr_write" {
         Effect   = "Allow"
         Action   = "ecr:GetAuthorizationToken"
         Resource = "*"
-      }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ssm:GetParameter"
+        Resource = aws_ssm_parameter.ecr_url.arn
+      },
     ]
   })
 
@@ -58,4 +64,11 @@ module "ecr" {
   create_lifecycle_policy           = false
 
   tags = module.tags.tags
+}
+
+resource "aws_ssm_parameter" "ecr_url" {
+  name  = "/ecr/${local.name}/url"
+  type  = "String"
+  value = module.ecr.repository_url
+  tags  = module.tags.tags
 }
