@@ -12,5 +12,5 @@ FROM scratch
 WORKDIR /opt/razzle
 COPY --from=builder /opt/target/release/dazzle .
 
-EXPOSE 3000
+EXPOSE 3030
 CMD ["/opt/razzle/dazzle"]
