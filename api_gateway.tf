@@ -13,7 +13,7 @@ module "api_gateway" {
       description        = "/ route for razzle dazzle"
       connection_type    = "VPC_LINK"
       vpc_link           = "this-link"
-      integration_uri    = try(aws_service_discovery_service.this[0].arn, null)
+      integration_uri    = data.aws_service_discovery_service.this.arn
       integration_type   = "HTTP_PROXY"
       integration_method = "ANY"
     }
@@ -21,16 +21,26 @@ module "api_gateway" {
       description        = "/hello route for razzle dazzle"
       connection_type    = "VPC_LINK"
       vpc_link           = "this-link"
-      integration_uri    = try(aws_service_discovery_service.this[0].arn, null)
+      integration_uri    = data.aws_service_discovery_service.this.arn
       integration_type   = "HTTP_PROXY"
       integration_method = "GET"
     }
-  }
-
-  cors_configuration = {
-    allow_headers = ["content-type", "x-amz-date", "authorization", "x-api-key", "x-amz-security-token", "x-amz-user-agent"]
-    allow_methods = ["*"]
-    allow_origins = ["*"]
+    "GET /healthz" = {
+      description        = "/healthz route for razzle dazzle"
+      connection_type    = "VPC_LINK"
+      vpc_link           = "this-link"
+      integration_uri    = data.aws_service_discovery_service.this.arn
+      integration_type   = "HTTP_PROXY"
+      integration_method = "GET"
+    }
+    "GET /goodbye" = {
+      description        = "/goodbye route for razzle dazzle"
+      connection_type    = "VPC_LINK"
+      vpc_link           = "this-link"
+      integration_uri    = data.aws_service_discovery_service.this.arn
+      integration_type   = "HTTP_PROXY"
+      integration_method = "GET"
+    }
   }
 
   vpc_links = {

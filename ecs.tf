@@ -1,5 +1,5 @@
 locals {
-  create_ecs = false
+  create_ecs = true
 
   container = {
     name = "dazzle"
@@ -22,6 +22,10 @@ module "ecs_cluster" {
     FARGATE = {}
   }
 
+  cluster_service_connect_defaults = {
+    namespace = try(aws_service_discovery_private_dns_namespace.this[0].arn, null)
+  }
+
   tags = module.tags.tags
 }
 
@@ -36,6 +40,7 @@ module "ecs_service" {
 
   name        = local.name
   cluster_arn = coalesce(module.ecs_cluster.arn, "x")
+  launch_type = "FARGATE"
 
   cpu    = 256
   memory = 512
@@ -44,8 +49,8 @@ module "ecs_service" {
   container_definitions = {
     dazzle = {
       essential = true
-      # This will barf on initial deploy
-      image = "${module.ecr.repository_url}:v0.1.0"
+      # This will barf on initial deploy if image does not yet exist
+      image = "${module.ecr.repository_url}:v0.1.1"
       port_mappings = [
         {
           name          = local.container.name
@@ -57,11 +62,17 @@ module "ecs_service" {
     }
   }
 
-  service_registries = {
-    # container_name = local.container.name
-    # container_port = local.container.port
-    port         = local.container.port
-    registry_arn = try(aws_service_discovery_service.this[0].arn, null)
+  service_connect_configuration = {
+    enabled   = true
+    namespace = try(aws_service_discovery_private_dns_namespace.this[0].arn, null)
+
+    service = {
+      client_alias = {
+        port = local.container.port
+      }
+      port_name      = local.container.name
+      discovery_name = local.container.name
+    }
   }
 
   subnet_ids = module.vpc.private_subnets
@@ -74,13 +85,6 @@ module "ecs_service" {
       description              = "Self ingress container port"
       source_security_group_id = try(aws_security_group.vpc_link[0].id, null)
     }
-    # all = {
-    #   type        = "ingress"
-    #   from_port   = -1
-    #   to_port     = -1
-    #   protocol    = -1
-    #   source_sec
-    # }
     egress_all = {
       type        = "egress"
       from_port   = 0
@@ -107,23 +111,9 @@ resource "aws_service_discovery_private_dns_namespace" "this" {
   tags = module.tags.tags
 }
 
-resource "aws_service_discovery_service" "this" {
-  count = local.create_ecs ? 1 : 0
+data "aws_service_discovery_service" "this" {
+  name         = local.container.name
+  namespace_id = aws_service_discovery_private_dns_namespace.this[0].id
 
-  name = "dazzle"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.this[0].id
-
-    dns_records {
-      ttl  = 60
-      type = "SRV"
-    }
-  }
-
-  # health_check_custom_config {
-  #   failure_threshold = 1
-  # }
-
-  tags = module.tags.tags
+  depends_on = [module.ecs_service]
 }
