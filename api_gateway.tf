@@ -5,8 +5,7 @@
 module "api_gateway" {
   source = "./modules/api-gateway"
 
-  name   = local.name
-  create = local.create_ecs
+  name = local.name
 
   integrations = {
     "ANY /" = {
@@ -45,34 +44,28 @@ module "api_gateway" {
 
   vpc_links = {
     this-link = {
-      name               = local.name
-      security_group_ids = [try(aws_security_group.vpc_link[0].id, null)]
-      subnet_ids         = module.vpc.private_subnets
+      name       = local.name
+      subnet_ids = module.vpc.private_subnets
     }
   }
 
-  tags = module.tags.tags
-}
-
-resource "aws_security_group" "vpc_link" {
-  count = local.create_ecs ? 1 : 0
-
-  name        = "allow_tls"
-  description = "Allow TLS inbound traffic"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    from_port   = 3030
-    to_port     = 3030
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  vpc_id = module.vpc.vpc_id
+  security_group_rules = {
+    container_port_ingress = {
+      type        = "ingress"
+      from_port   = local.container.port
+      to_port     = local.container.port
+      protocol    = "tcp"
+      description = "Container port access from internet"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+    prviate_subnet_egress_all = {
+      type        = "egress"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = module.vpc.private_subnets_cidr_blocks
+    }
   }
 
   tags = module.tags.tags

@@ -31,7 +31,7 @@ resource "aws_iam_policy" "ecr_write" {
           "ecr:BatchCheckLayerAvailability",
           "ecr:PutImage"
         ],
-        Resource = coalesce(module.ecr.repository_arn, "*")
+        Resource = module.ecr.repository_arn
       },
       {
         Effect   = "Allow"
@@ -59,7 +59,7 @@ module "ecr" {
 
   repository_name                   = local.name
   repository_read_write_access_arns = [module.github_oidc_iam_role.arn]
-  repository_read_access_arns       = local.create_ecs ? [module.ecs_service.task_exec_iam_role_arn] : []
+  repository_read_access_arns       = ["arn:aws:iam::${local.account_id}:root"]
   repository_force_delete           = true
   create_lifecycle_policy           = false
 
@@ -69,6 +69,6 @@ module "ecr" {
 resource "aws_ssm_parameter" "ecr_url" {
   name  = "/ecr/${local.name}/url"
   type  = "String"
-  value = coalesce(module.ecr.repository_url, "")
+  value = module.ecr.repository_url
   tags  = module.tags.tags
 }

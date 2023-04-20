@@ -13,8 +13,6 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 4.0"
 
-  create_vpc = local.create_ecs
-
   name = local.name
   cidr = local.vpc_cidr
 

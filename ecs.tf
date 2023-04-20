@@ -1,6 +1,4 @@
 locals {
-  create_ecs = true
-
   container = {
     name = "dazzle"
     port = 3030
@@ -14,7 +12,6 @@ locals {
 module "ecs_cluster" {
   source = "github.com/clowdhaus/terraform-aws-ecs//modules/cluster"
 
-  create       = local.create_ecs
   cluster_name = local.name
 
   # Capacity provider
@@ -23,7 +20,7 @@ module "ecs_cluster" {
   }
 
   cluster_service_connect_defaults = {
-    namespace = try(aws_service_discovery_private_dns_namespace.this[0].arn, null)
+    namespace = aws_service_discovery_private_dns_namespace.this.arn
   }
 
   tags = module.tags.tags
@@ -33,13 +30,15 @@ module "ecs_cluster" {
 # Service
 ################################################################################
 
+data "aws_ecr_repository" "this" {
+  name = local.name
+}
+
 module "ecs_service" {
   source = "github.com/clowdhaus/terraform-aws-ecs//modules/service"
 
-  create = local.create_ecs
-
   name        = local.name
-  cluster_arn = coalesce(module.ecs_cluster.arn, "x")
+  cluster_arn = module.ecs_cluster.arn
   launch_type = "FARGATE"
 
   cpu    = 256
@@ -50,7 +49,7 @@ module "ecs_service" {
     dazzle = {
       essential = true
       # This will barf on initial deploy if image does not yet exist
-      image = "${module.ecr.repository_url}:v0.1.1"
+      image = "${data.aws_ecr_repository.this.repository_url}:v0.1.1"
       port_mappings = [
         {
           name          = local.container.name
@@ -59,12 +58,19 @@ module "ecs_service" {
           protocol      = "tcp"
         }
       ]
+      health_check = {
+        command      = ["CMD-SHELL", "curl -f http://localhost:${local.container.port}/healthz || exit 1"]
+        interval     = 30
+        retries      = 3
+        start_period = 10
+        timeout      = 5
+      }
     }
   }
 
   service_connect_configuration = {
     enabled   = true
-    namespace = try(aws_service_discovery_private_dns_namespace.this[0].arn, null)
+    namespace = aws_service_discovery_private_dns_namespace.this.arn
 
     service = {
       client_alias = {
@@ -77,13 +83,13 @@ module "ecs_service" {
 
   subnet_ids = module.vpc.private_subnets
   security_group_rules = {
-    self_ingress_container_port = {
+    api_gateway_ingress = {
       type                     = "ingress"
       from_port                = local.container.port
       to_port                  = local.container.port
       protocol                 = "tcp"
-      description              = "Self ingress container port"
-      source_security_group_id = try(aws_security_group.vpc_link[0].id, null)
+      description              = "API gateway forward to container"
+      source_security_group_id = module.api_gateway.security_group_id
     }
     egress_all = {
       type        = "egress"
@@ -102,8 +108,6 @@ module "ecs_service" {
 ################################################################################
 
 resource "aws_service_discovery_private_dns_namespace" "this" {
-  count = local.create_ecs ? 1 : 0
-
   name        = "dazzle.local"
   description = "Private DNS namespace for ${local.name}"
   vpc         = module.vpc.vpc_id
@@ -113,7 +117,7 @@ resource "aws_service_discovery_private_dns_namespace" "this" {
 
 data "aws_service_discovery_service" "this" {
   name         = local.container.name
-  namespace_id = aws_service_discovery_private_dns_namespace.this[0].id
+  namespace_id = aws_service_discovery_private_dns_namespace.this.id
 
   depends_on = [module.ecs_service]
 }
