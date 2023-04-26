@@ -35,7 +35,8 @@ data "aws_ecr_repository" "this" {
 }
 
 module "ecs_service" {
-  source = "github.com/clowdhaus/terraform-aws-ecs//modules/service"
+  source  = "terraform-aws-modules/ecs/aws//modules/service"
+  version = "~> 5.0"
 
   name        = local.name
   cluster_arn = module.ecs_cluster.arn
@@ -49,7 +50,7 @@ module "ecs_service" {
     dazzle = {
       essential = true
       # This will barf on initial deploy if image does not yet exist
-      image = "${data.aws_ecr_repository.this.repository_url}:v0.1.1"
+      image = "${data.aws_ecr_repository.this.repository_url}:v0.2.0"
       port_mappings = [
         {
           name          = local.container.name
@@ -59,7 +60,7 @@ module "ecs_service" {
         }
       ]
       health_check = {
-        command      = ["CMD-SHELL", "curl -f http://localhost:${local.container.port}/healthz || exit 1"]
+        command      = ["CMD", "/app/up --port 3000 --path /healthz || exit 1"]
         interval     = 30
         retries      = 3
         start_period = 10
